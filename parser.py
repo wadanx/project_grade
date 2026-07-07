@@ -141,6 +141,8 @@ def parse_wb(wb_path: str, reg ) -> list:
         df = handle_zero_credit(df)
         df = handle_duplicates(df)
         df = handle_zero_on_fail(df)
+
+        df['honor'] = df['score'] >= 75
         
         if os.path.exists('intermediate'):    
             df.sort_values('level', ascending=True).to_excel(f'intermediate/{name}.xlsx')

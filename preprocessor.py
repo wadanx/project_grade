@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 
 def handle_duplicates(df : pd.DataFrame):
@@ -27,11 +28,13 @@ def handle_duplicates(df : pd.DataFrame):
 
 def calc_grades(df : pd.DataFrame, points_to_grades):
     df['acumlated_points'] = df['points'] * df['credit_hours']
+    no_honor = (df['honor'] == False).any()
+    
     n_df = df.groupby('level')[['acumlated_points', 'credit_hours', 'score']].sum().copy()
     n_df['points'] = (n_df['acumlated_points'] / n_df['credit_hours']).round(2)
     n_df[['grade', 'desciptive_grade']] = n_df['points'].apply(lambda x : pd.Series(points_to_grades(x)))
     cols = ['acumlated_points', 'credit_hours', 'points', 'grade', 'desciptive_grade', 'score']
-    return n_df[cols].to_numpy().flatten()
+    return np.append(n_df[cols].to_numpy().flatten(), ~no_honor)
 
 
 def handle_zero_credit(df : pd.DataFrame):

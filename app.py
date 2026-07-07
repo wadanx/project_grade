@@ -32,12 +32,12 @@ def main(in_file: str, out_file: str, reg_file: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process an Excel file using a JSON registry.")
     parser.add_argument("-i", "--input", dest="in_file", required=True, help="Path to the input Excel file")
-    parser.add_argument("-o", "--output", dest="out_file", required=True, help="Path to the output file")
+    parser.add_argument("-o", "--output", dest="out_file", required=False, help="Path to the output file")
     parser.add_argument("-r", "--registry", dest="reg_file", required=True, help="Path to the JSON registry file")
 
     args = parser.parse_args()
 
-    main(args.in_file, args.out_file, args.reg_file)
+    main(args.in_file, args.out_file if args.out_file  else "out", args.reg_file)
 
     
 
