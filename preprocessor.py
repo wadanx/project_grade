@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def handle_duplicates(df : pd.DataFrame, passeed_only = False):
+def get_passed(df : pd.DataFrame, passeed_only = False):
    # Create the columns
     df["pass"] = df["score"] >= 50
 
@@ -11,20 +11,8 @@ def handle_duplicates(df : pd.DataFrame, passeed_only = False):
         .sort_values("score", ascending=False)
         .drop_duplicates("name")
     )
-    if passeed_only:
-        return passed
-
-    # First occurrence for failing rows (only names with no passing rows)
-    failed = (
-        df[~df["pass"]]
-        .groupby("name", as_index=False)
-        .first()
-    )
-
-
-    # Combine
-    result = pd.concat([passed, failed], ignore_index=True)
-    return result
+   
+    return passed
 
 
 def calc_grades(df : pd.DataFrame, points_to_grades):

@@ -5,7 +5,7 @@ import re
 import pandas as pd
 
 from dataclasses import dataclass, field
-from preprocessor import handle_duplicates, calc_grades, handle_zero_credit, handle_zero_on_fail
+from preprocessor import get_passed, calc_grades, handle_zero_credit, handle_zero_on_fail
 
 import os
 import sys
@@ -79,7 +79,7 @@ def get_dependency(name):
 
 def get_dependent_subjects(name, openned):
         name = dependecy_map.get(name)
-        if name == None:
+        if (name == None) or (name not in openned):
             return[]
         
         dependencies = get_dependency(name)
@@ -207,20 +207,25 @@ class Parser:
 
 
 def parse_wb(wb_path:str ):
+    print('reading file')
     workbook = xl.load_workbook(wb_path, data_only=True)
-    rows = []
-    
+    print("processing sheets")
 
+    total_open = dict()
     for sheet_name in workbook.sheetnames:
         sheet = workbook[sheet_name]
         parser = Parser(sheet)
         student_name, df = parser.parse()
-        #df = handle_zero_credit(df)
-        df = handle_duplicates(df, passeed_only=True)
-        #df = handle_zero_on_fail(df)
+        df = get_passed(df, passeed_only=True)
            
         openned = list(total_subjects - set(df.sort_values(by=["level", "semester"],ascending=[False, False])['name']))
        
+        for subject in openned:
+            if total_open.get(subject) == None:
+                total_open[subject] = 1
+            else:
+                total_open[subject] += 1
+
         rank_map = dict()
         for name in openned:
             rank_map[name] = 0
@@ -230,9 +235,9 @@ def parse_wb(wb_path:str ):
                 rank_map[name] = rank_map[name] + 1
 
  
-
-        ndf= pd.DataFrame(rank_map.items(), columns=['subject_name', '#closings'])
+        ndf = pd.DataFrame(rank_map.items(), columns=['subject_name', '#closings']).sort_values('#closings', ascending=False, ignore_index=True)
         ndf['dependent subjects'] = ndf['subject_name'].apply(lambda subject: get_dependent_subjects(subject,openned))
         
         if(ndf['subject_name'].count() >= 1):   
-            ndf.sort_values('#closings', ascending=False, ignore_index=True).to_excel(f'intermediate/{student_name}.xlsx')
+            ndf.to_excel(f'intermediate/{student_name}.xlsx')
+    pd.DataFrame(list(total_open.items()), columns=['Course', 'Count']).sort_values('Count').to_excel('stats.xlsx', index=False)
