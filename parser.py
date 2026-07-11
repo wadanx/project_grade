@@ -8,7 +8,86 @@ from dataclasses import dataclass, field
 from preprocessor import handle_duplicates, calc_grades, handle_zero_credit, handle_zero_on_fail
 
 import os
+import sys
 
+total_subjects = {'Computer Fundamentals',
+'Introduction to Linear Algebra',
+'English Language',
+'Electric Circuits',
+'Structured Programming',
+'Mathematics-1',
+'Probability and Statistics-1',
+'Concepts in Artificial Intelligence',
+'Introduction to Programming with Python',
+'Probability & Statistics 2',
+'Scientific Thinking',
+'Societal Issues',
+'Logic Design',
+'Numerical Analysis',
+'Introduction to Machine Learning',
+'Introduction to Computer Vision and Robotics',
+'Object Oriented Programming',
+'Computer Architecture',
+'Computer Networks',
+'Scientific Writing',
+'Information Retrieval and Web Search',
+'Databases',
+'Fundamentals of Computational Intelligence',	
+'Introduction to Data Structures',
+'Introduction to Natural Language Processing',
+'Operating Systems',
+'Introduction to Multi Agent Systems Design',
+'Computer Security',
+'Fundamentals of Computer Graphics'}
+
+
+dependecy_map = {
+    'Concepts in Artificial Intelligence' : 'Computer Fundamentals',
+    'Introduction to Programming with Python' : 'Structured Programming',
+    'Probability & Statistics 2' : 'Probability and Statistics-1',
+    'Logic Design' : 'Electric Circuits',
+    'Numerical Analysis' : 'Introduction to Linear Algebra',
+    'Introduction to Machine Learning' : 'Concepts in Artificial Intelligence',
+    'Introduction to Computer Vision and Robotics' : 'Concepts in Artificial Intelligence',
+    'Object Oriented Programming' : 'Structured Programming',
+    'Computer Architecture' : 'Logic Design',
+    'Computer Networks' : 'Computer Fundamentals',
+    'Scientific Writing' : 'English Language',
+    'Information Retrieval and Web Search' : 'Structured Programming',
+    'Databases' : 'Structured Programming',
+    'Fundamentals of Computational Intelligence' : 'Introduction to Machine Learning',
+    'Introduction to Data Structures' : 'Object Oriented Programming',
+    'Introduction to Natural Language Processing' : 'Concepts in Artificial Intelligence',
+    'Operating Systems' : 'Computer Architecture',
+    'Introduction to Multi Agent Systems Design' : 'Concepts in Artificial Intelligence',
+    'Computer Security' :  'Computer Networks',
+    'Fundamentals of Computer Graphics' : 'Introduction to Computer Vision and Robotics'}
+
+next_year_lockers = ['Introduction to Computer Vision and Robotics', 'Introduction to Machine Learning', 'Computer Architecture',
+                     'Introduction to Data Structures', 'Object Oriented Programming', 'Introduction to Data Structures', 'Computer Networks', 'Object Oriented Programming',
+                     'Fundamentals of Computational Intelligence']
+
+
+
+from collections import defaultdict
+
+def get_dependency(name):
+        if name in dependecy_map.keys():
+            return [name] + get_dependency(dependecy_map[name])
+        else:
+            return []
+
+def get_dependent_subjects(name, openned):
+        name = dependecy_map.get(name)
+        if name == None:
+            return[]
+        
+        dependencies = get_dependency(name)
+        for item in dependencies:
+            if item not in openned:
+                dependencies.remove(item); 
+        return dependencies
+    
 class Parser:
     def __init__(self, sheet):
         self.sheet = sheet
@@ -44,7 +123,6 @@ class Parser:
                     row = row + 1
                     while self.sheet.cell(row=row, column=col).value:
                         if (self.sheet.cell(row=row, column=self.ctx.get('grade_col')).value == 'اعتذار'):
-                            print('execuse detected')
                             row = row + 1
                             continue
                         subjects.append(self.read_subject(row))
@@ -52,7 +130,6 @@ class Parser:
 
                 elif isinstance(cell_value, str) :
                     if re.search(r"المستوى/الفصل", cell_value):
-                        print('match found')
                         pattern = r"المستوى\s+([^/\s]+).*?/الفصل(?:\s+الدراسي)?\s+(.+)$"
                         match = re.search(pattern, cell_value)
                         if match:
@@ -129,7 +206,7 @@ class Parser:
                         self.ctx['grade_col'] = col
 
 
-def parse_wb(wb_path: str, reg ) -> list:
+def parse_wb(wb_path:str ):
     workbook = xl.load_workbook(wb_path, data_only=True)
     rows = []
     
@@ -137,19 +214,25 @@ def parse_wb(wb_path: str, reg ) -> list:
     for sheet_name in workbook.sheetnames:
         sheet = workbook[sheet_name]
         parser = Parser(sheet)
-        name, df = parser.parse()
-        df = handle_zero_credit(df)
-        df = handle_duplicates(df)
-        df = handle_zero_on_fail(df)
+        student_name, df = parser.parse()
+        #df = handle_zero_credit(df)
+        df = handle_duplicates(df, passeed_only=True)
+        #df = handle_zero_on_fail(df)
+           
+        openned = list(total_subjects - set(df.sort_values(by=["level", "semester"],ascending=[False, False])['name']))
+       
+        rank_map = dict()
+        for name in openned:
+            rank_map[name] = 0
         
-        if os.path.exists('intermediate'):    
-            df.sort_values('level', ascending=True).to_excel(f'intermediate/{name}.xlsx')
-        else:
-            os.mkdir('intermediate')
-            df.sort_values('level', ascending=True).to_excel(f'intermediate/{name}.xlsx')
-            
-        data = calc_grades(df, reg.points_to_grade)
-        
-        rows.append([name] + list(data))
+        for name in next_year_lockers:
+            if rank_map.get(name) != None:
+                rank_map[name] = rank_map[name] + 1
 
-    return rows
+ 
+
+        ndf= pd.DataFrame(rank_map.items(), columns=['subject_name', '#closings'])
+        ndf['dependent subjects'] = ndf['subject_name'].apply(lambda subject: get_dependent_subjects(subject,openned))
+        
+        if(ndf['subject_name'].count() >= 1):   
+            ndf.sort_values('#closings', ascending=False, ignore_index=True).to_excel(f'intermediate/{student_name}.xlsx')
