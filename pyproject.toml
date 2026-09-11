@@ -9,4 +9,10 @@ dependencies = [
     "numpy>=2.4.6",
     "openpyxl>=3.1.5",
     "pandas>=3.0.3",
+    "pyside6>=6.11.2",
+]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.22.2",
 ]

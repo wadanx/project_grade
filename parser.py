@@ -5,16 +5,13 @@ import re
 import pandas as pd
 
 from dataclasses import dataclass, field
-from preprocessor import handle_duplicates, calc_grades, handle_zero_credit, handle_zero_on_fail
-
-import os
+from preprocessor import calc_grades, process
+from pathlib import Path
 
 class Parser:
-    def __init__(self, sheet):
-        self.sheet = sheet
+    def __init__(self,):
+        self.sheet = None
         self.ctx={
-            'name': None,
-            'id': None,
             'subject_name_col': None,
             'credit_hours_col': None,
             'points_col': None,
@@ -23,62 +20,67 @@ class Parser:
             'level': 0,
             'semester': 0,
         }
-        self.m_row = 0
-        self.m_col = 0
 
-    def toggle_searching(self):
-        self.searchinnng = not self.searchinnng
 
-    def parse(self) -> json:
+    def parse(self, sheet=None):
+        if sheet is not None:
+            self.sheet = sheet
+            self.update_ctx()
+            max_row = sheet.max_row
+            max_col = sheet.max_column
+            name = self.parse_name()
 
-        max_row = self.sheet.max_row
-        max_col = self.sheet.max_column
-        subjects = []
-        self.parse_id()
-        self.parse_name()
-        self.fill_ctx()
-        for row in range(1, max_row + 1):
-            for col in range(1, max_col + 1):
-                cell_value = self.sheet.cell(row=row, column=col).value
-                if cell_value == 'م':
-                    row = row + 1
-                    while self.sheet.cell(row=row, column=col).value:
-                        if (self.sheet.cell(row=row, column=self.ctx.get('grade_col')).value == 'اعتذار'):
-                            print('execuse detected')
+            subjects = []
+            for row in range(1, max_row + 1):
+                for col in range(1, max_col + 1):
+                    cell_value = self.sheet.cell(row=row, column=col).value
+                    if isinstance(cell_value, str) :
+                        if cell_value == 'م':
                             row = row + 1
-                            continue
-                        subjects.append(self.read_subject(row))
-                        row = row + 1
+                            while self.sheet.cell(row=row, column=col).value:
+                                if (self.sheet.cell(row=row, column=self.ctx.get('grade_col')).value == 'اعتذار'):
+                                    print('execuse detected')
+                                    row = row + 1
+                                    continue
+                                subjects.append(self.read_subject(row))
+                                row = row + 1
 
-                elif isinstance(cell_value, str) :
-                    if re.search(r"المستوى/الفصل", cell_value):
-                        print('match found')
-                        pattern = r"المستوى\s+([^/\s]+).*?/الفصل(?:\s+الدراسي)?\s+(.+)$"
-                        match = re.search(pattern, cell_value)
-                        if match:
-                            self.ctx['level'] = self.get_level(match.group(1))
-                            self.ctx['semester'] = self.get_semester(match.group(2))
+                        else:
+                            level, semester = self.get_level_semester(cell_value)
+                            if level != -1:
+                                self.ctx['level'], self.ctx['semester'] = level, semester
 
-        return self.ctx.get('name'), pd.DataFrame(subjects)
-
-
-    def get_level(self, cell_value: str) -> int:
-        if cell_value == 'الأول' or cell_value == 'الاول':
-            return 1
-        elif cell_value == 'الثاني' or cell_value == 'الثانى':
-            return 2    
-        elif cell_value == 'الثالث':
-            return 3
-        elif cell_value == 'الرابع':
-            return 4
-
-    def get_semester(self, cell_value: str) -> int:
-        if cell_value == 'الأول' or cell_value == 'الاول':
-            return 1
-        elif cell_value == 'الثاني' or cell_value == 'الثانى':
-            return 2
+            return name, pd.DataFrame(subjects)
+        return None
+    
+    def get_level_semester(self, cell_value: str) -> int:
+        if cell_value == 'المستوى/الفصل :المستوى الاول/الفصل الدراسي الأول':
+            return 1, 1
+        elif cell_value == 'المستوى/الفصل :المستوى الاول/الفصل الدراسي الثاني':
+            return 1, 2
+        elif cell_value == 'المستوى/الفصل :المستوى الاول/الفصل الصيفي':
+            return 1, 3
+        elif cell_value == 'المستوى/الفصل :المستوى الثاني/الفصل الدراسي الأول':
+            return 2, 1
+        elif cell_value == 'المستوى/الفصل :المستوى الثاني/الفصل الدراسي الثاني':
+            return 2, 2
+        elif cell_value == 'المستوى/الفصل :المستوى الثاني/الفصل الصيفي':
+            return 2, 3
+        elif cell_value == 'المستوى/الفصل :المستوى الثالث/الفصل الدراسي الأول':
+            return 3, 1
+        elif cell_value == 'المستوى/الفصل :المستوى الثالث/الفصل الدراسي الثاني':
+            return 3, 2
+        elif cell_value == 'المستوى/الفصل :المستوى الثالث/الفصل الصيفي':
+            return 3, 3
+        elif cell_value == 'المستوى/الفصل :المستوى الرابع/الفصل الدراسي الأول':
+            return 4, 1
+        elif cell_value == 'المستوى/الفصل :المستوى الرابع/الفصل الدراسي الثاني':
+            return 4, 2
+        elif cell_value == 'المستوى/الفصل :المستوى الرابع/الفصل الصيفي':
+            return 4, 3
         else:
-            return 3
+            return -1, -1
+
 
     def read_subject(self, row_index: int):
         return  {
@@ -91,15 +93,6 @@ class Parser:
             'semester': self.ctx['semester'],
         }
 
-    def parse_id(self,):
-        for row in range(1, self.sheet.max_row + 1):
-            for col in range(1, self.sheet.max_column + 1):
-                cell_value = self.sheet.cell(row=row, column=col).value
-                if isinstance(cell_value, str):
-                    match = re.search(r"كود الطالب\s*:\s*(\d+)", cell_value)
-                    if match:
-                        self.ctx['id'] = match.group(1)
-                        break
     def parse_name(self,):
         for row in range(1, self.sheet.max_row + 1):
             for col in range(1, self.sheet.max_column + 1):
@@ -107,10 +100,12 @@ class Parser:
                 if isinstance(cell_value, str):
                     match = re.search(r"أسم الطالب\s*:\s*(.+)", cell_value)
                     if match:
-                        self.ctx['name'] = match.group(1)
-                        break
+                        return match.group(1)
+        return None
     
-    def fill_ctx(self,):
+    def update_ctx(self,):
+        self.ctx['level'] = 0
+        self.ctx['semester'] = 0
         for row in range(1, self.sheet.max_row + 1):
             for col in range(1, self.sheet.max_column + 1):
                 cell_value = self.sheet.cell(row=row, column=col).value
@@ -129,29 +124,64 @@ class Parser:
                         self.ctx['grade_col'] = col
 
 
-def parse_wb(wb_path: str, reg ) -> list:
+LEVEL_NAMES_AR = {1: 'الاول', 2: 'الثاني', 3: 'الثالث', 4: 'الرابع'}
+
+OVERALL_HEADERS = [
+    'المجموع الكلي للتراكمي',
+    'عدد الساعات',
+    'المعدل التراكمي للطالب',
+    'المجموعات بالدرجات',
+    'التقدير الكلي',
+    'التقدير الوصفي الكلي',
+]
+
+HONOR_HEADER = 'مرتبة الشرف'
+
+
+def build_result_columns(n_columns: int) -> list[str]:
+    """Column labels for parse_wb's output rows:
+
+    [name] + 6 metrics per level (repeated per level) + 6 overall totals + [honor flag].
+    """
+    columns = ['اسم الطالب']
+    remaining = n_columns - 1 - len(OVERALL_HEADERS) - 1  # minus name, overall block, honor
+    n_levels = max(remaining // 6, 0)
+    for level in range(1, n_levels + 1):
+        level_name = LEVEL_NAMES_AR.get(level, str(level))
+        columns.extend([
+            'مجموع التراكمي',
+            'عدد الساعات',
+            f'تراكمي المستوى {level_name}',
+            'التقدير',
+            'التقدير الوصفي',
+            'المجوع بالدرجات',
+        ])
+    columns.extend(OVERALL_HEADERS)
+    while len(columns) < n_columns - 1:
+        columns.append(f'عمود {len(columns)}')
+    columns.append(HONOR_HEADER)
+    return columns[:n_columns]
+
+
+def parse_wb(wb_path: str, reg, write_intermediate: bool = True) -> list:
     workbook = xl.load_workbook(wb_path, data_only=True)
     rows = []
-    
+    parser = Parser()
+
+    if write_intermediate:
+        intermediate_dir = Path('intermediate') / Path(wb_path).stem
+        intermediate_dir.mkdir(parents=True, exist_ok=True)
 
     for sheet_name in workbook.sheetnames:
         sheet = workbook[sheet_name]
-        parser = Parser(sheet)
-        name, df = parser.parse()
-        df = handle_zero_credit(df)
-        df = handle_duplicates(df)
-        df = handle_zero_on_fail(df)
+        name, df = parser.parse(sheet)
+        df = process(df)
 
-        df['honor'] = df['score'] >= 75
-        
-        if os.path.exists('intermediate'):    
-            df.sort_values('level', ascending=True).to_excel(f'intermediate/{name}.xlsx')
-        else:
-            os.mkdir('intermediate')
-            df.sort_values('level', ascending=True).to_excel(f'intermediate/{name}.xlsx')
-            
+        if write_intermediate:
+            df.sort_values(['level', 'semester'], ascending=True).to_excel(intermediate_dir / f'{name}.xlsx')
+
         data = calc_grades(df, reg.points_to_grade)
-        
+
         rows.append([name] + list(data))
 
     return rows
