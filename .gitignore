@@ -5,11 +5,13 @@ build/
 dist/
 wheels/
 *.egg-info
+*.spec
 
 # Virtual environments
 .venv
 
 intermediate/
 out/
+output/
 samples/
 data/

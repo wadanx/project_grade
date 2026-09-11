@@ -1,0 +1,72 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install Linux build/runtime dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y binutils libxcb-cursor0
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Build executable
+        run: uv run pyinstaller --name GradeReportGenerator --onefile --windowed --noconfirm gui.py
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p release
+          cp dist/GradeReportGenerator release/
+          cp -r grade_rules release/grade_rules
+          cd release && zip -r ../GradeReportGenerator-linux.zip .
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release
+          Copy-Item dist/GradeReportGenerator.exe release/
+          Copy-Item -Recurse grade_rules release/grade_rules
+          Compress-Archive -Path release/* -DestinationPath GradeReportGenerator-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GradeReportGenerator-${{ runner.os }}
+          path: GradeReportGenerator-*.zip
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.zip
