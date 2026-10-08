@@ -1,0 +1,30 @@
+﻿{
+    "name": "2019",
+    "thresholds": [
+        {
+            "min_points": 3.7,
+            "letter": "A",
+            "label": "ممتاز"
+        },
+        {
+            "min_points": 3.0,
+            "letter": "B",
+            "label": "جيد جدا"
+        },
+        {
+            "min_points": 2.4,
+            "letter": "C",
+            "label": "جيد"
+        },
+        {
+            "min_points": 1.7,
+            "letter": "D",
+            "label": "مقبول"
+        },
+        {
+            "min_points": 0.0,
+            "letter": "F",
+            "label": "ضعيف جدا"
+        }
+    ]
+}

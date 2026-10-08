@@ -1,0 +1,35 @@
+{
+    "name": "2023",
+    "thresholds": [
+        {
+            "min_points": 3.5,
+            "letter": "A",
+            "label": "ممتاز"
+        },
+        {
+            "min_points": 3.0,
+            "letter": "B",
+            "label": "جيد جدا"
+        },
+        {
+            "min_points": 2.5,
+            "letter": "C",
+            "label": "جيد"
+        },
+        {
+            "min_points": 2.0,
+            "letter": "D",
+            "label": "مقبول"
+        },
+        {
+            "min_points": 1.0,
+            "letter": "F",
+            "label": "ضعيف"
+        },
+        {
+            "min_points": 0.0,
+            "letter": "F-",
+            "label": "ضعيف جدا"
+        }
+    ]
+}
